@@ -65,41 +65,43 @@
     return null;
   }
 
-  async function fetchTokenData() {
-    try {
-      const resp = await fetch(NAD_API, { cache: "no-cache" });
-      if (!resp.ok) throw new Error("Network response not ok: " + resp.status);
-      const data = await resp.json();
+async function fetchTokenData() {
+  try {
+    const resp = await fetch(NAD_API, { cache: "no-cache" });
 
-      // Nad.fun returns fields with varying names depending on endpoints.
-      // Try a few common possibilities:
-      const price = pick(data, ["priceUsd", "price", "currentPrice", "price_usd"]);
-      const marketCap = pick(data, ["marketCapUsd", "marketCap", "market_cap", "market_cap_usd"]);
-      const circulating = pick(data, ["circulatingSupply", "circulating", "circulating_supply"]);
-      const liquidity = pick(data, ["liquidityUsd", "liquidity", "liquidity_usd"]);
-
-      // update DOM safely
-      if (priceEl) priceEl.textContent = formatPrice(Number(price));
-      if (marketEl) marketEl.textContent = formatBig(Number(marketCap));
-      if (circulatingEl) {
-        if (circulating === null || circulating === undefined) circulatingEl.textContent = "--";
-        else circulatingEl.textContent = Number(circulating).toLocaleString();
-      }
-      if (liquidityEl) {
-        if (liquidity === null || liquidity === undefined) {
-          // if liquidity field missing, keep previously set "Locked" or --
-          if (!liquidityEl.textContent || liquidityEl.textContent.trim() === "") liquidityEl.textContent = "--";
-        } else {
-          liquidityEl.textContent = formatBig(Number(liquidity));
-        }
-      }
-
-    } catch (err) {
-      console.error("Failed to fetch token data:", err);
-      // don't overwrite the UI on error; optionally show a subtle 'offline' state
-      if (priceEl && priceEl.textContent === "--") priceEl.textContent = "--";
+    // if nad.fun doesn't have data it may respond 4xx with plain text
+    if (!resp.ok) {
+      console.warn("NAD proxy returned", resp.status, await resp.text());
+      // show friendly message in UI instead of -- 
+      if (priceEl) priceEl.textContent = "Not listed";
+      if (marketEl) marketEl.textContent = "--";
+      if (circulatingEl) circulatingEl.textContent = "--";
+      return;
     }
+
+    // otherwise parse JSON and update UI
+    const data = await resp.json();
+
+    const price = pick(data, ["priceUsd", "price", "currentPrice", "price_usd"]);
+    const marketCap = pick(data, ["marketCapUsd", "marketCap", "market_cap", "market_cap_usd"]);
+    const circulating = pick(data, ["circulatingSupply", "circulating", "circulating_supply"]);
+    const liquidity = pick(data, ["liquidityUsd", "liquidity", "liquidity_usd"]);
+
+    if (priceEl) priceEl.textContent = formatPrice(Number(price));
+    if (marketEl) marketEl.textContent = formatBig(Number(marketCap));
+    if (circulatingEl) {
+      circulatingEl.textContent = (circulating === null || circulating === undefined) ? "--" : Number(circulating).toLocaleString();
+    }
+    if (liquidityEl) {
+      liquidityEl.textContent = (liquidity === null || liquidity === undefined) ? "--" : formatBig(Number(liquidity));
+    }
+
+  } catch (err) {
+    console.error("Failed to fetch token data:", err);
+    if (priceEl) priceEl.textContent = "--";
   }
+}
+
 
   // initial fetch
   fetchTokenData();
